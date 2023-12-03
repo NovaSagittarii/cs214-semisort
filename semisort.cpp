@@ -8,19 +8,9 @@
 #include "parlaylib/include/parlay/parallel.h"
 #include "parlaylib/include/parlay/internal/get_time.h"
 
-using Type = long long;
+#include "hash64.h"
 
-inline uint64_t hash64(uint64_t u) {
-  uint64_t v = u * 3935559000370003845ul + 2691343689449507681ul;
-  v ^= v >> 21;
-  v ^= v << 37;
-  v ^= v >> 4;
-  v *= 4768777513237032717ul;
-  v ^= v << 20;
-  v ^= v >> 41;
-  v ^= v << 5;
-  return v;
-}
+using Type = long long;
 
 int main(int argc, char* argv[]) {
   size_t n = 1e9;
@@ -49,18 +39,20 @@ int main(int argc, char* argv[]) {
 
     // [Checker] check counts and semisorted (when it changes, there should be no more left)
     int curr = -1;
-    auto remaining = counts;
+    int remaining = 0;
     for (size_t i = 0; i < n; ++i) {
       const auto x = A[i];
       if (x != curr) {
-        if (remaining[curr]) {
+        if (remaining) {
           std::cout << "Output is not semisorted\n";
-          std::cout << "Segment with key=" << curr << " ended with " << remaining[x] << " missing elements\n";
+          std::cout << "Segment with key=" << curr << " ended with " << remaining << " missing elements\n";
+          std::cout << "Found " << (counts[x]-remaining) << " elements but expected " << counts[x] << " elements\n";
           exit(0);
         }
         curr = x;
+        remaining = counts[x];
       }
-      --remaining[x];
+      --remaining;
     }
 
 

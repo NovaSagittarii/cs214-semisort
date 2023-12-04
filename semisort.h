@@ -27,9 +27,14 @@ size_t GetBucketId(const size_t k, const std::map<size_t, size_t>& H) {
 }
 
 template <class T>
-void ssort(T *A, T *B, size_t *C, const size_t An, const size_t n) {
+void ssort(T *A, T *B, size_t *C, const size_t An, const size_t n, const bool in_place) {
   if (n <= alpha) {
     std::sort(A, A + n);
+    if (in_place) {
+      parlay::parallel_for(0, n, [&](size_t i) { // copy step; TODO: remove later
+        B[i] = A[i];
+      });
+    }
     return;
   }
   if (n <= 1) return;
@@ -121,14 +126,16 @@ void ssort(T *A, T *B, size_t *C, const size_t An, const size_t n) {
   // print_array(A, n);
   // print_array(B, n);
   // print_array(offsets, nL+1);
-  parlay::parallel_for(0, n, [&](size_t i) { // copy step; TODO: remove later
-    A[i] = B[i];
-  });
+  if (!in_place) {
+    parlay::parallel_for(offsets[nL], n, [&](size_t i) { // write heavy buckets back
+      A[i] = B[i];
+    });
+  }
 
   // Local Refining
   parlay::parallel_for(0, nL, [&](size_t i) {
     const size_t o = offsets[i];
-    ssort(A + o, B + o, C + o, An, offsets[i+1] - o);
+    ssort(B + o, A + o, C + o, An, offsets[i+1] - o, !in_place);
   });
   free(offsets);
 }
@@ -138,7 +145,7 @@ void semisort(T *A, size_t n) {
   T* B = (T*)malloc(n * sizeof(T)); // output buffer
   size_t* C = (size_t*)malloc(n * sizeof(size_t)); // subarray counts
   // print_array(A, n);
-  ssort(A, B, C, n, n);
+  ssort(A, B, C, n, n, false);
   // print_array(A, n);
   free(C);
   free(B);

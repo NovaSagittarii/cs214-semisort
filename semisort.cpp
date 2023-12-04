@@ -22,6 +22,7 @@ int main(int argc, char* argv[]) {
 
   Type* A = (Type*)malloc(n * sizeof(Type));
   parlay::parallel_for(0, n, [&](size_t j) { A[j] = hash64(j * random_seed) % 1000; });
+  // Note: checker doesn't run well with few duplicates.
 
   // [Checker] get counts
   std::map<int, int> counts;

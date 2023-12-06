@@ -65,6 +65,7 @@ void run_test(size_t n, size_t keys, int num_rounds, int random_seed) {
       total_time += t.total_time();
     }
   }
+  free(A);
   std::cout << "Average running time: " << total_time / num_rounds << std::endl;
 }
 

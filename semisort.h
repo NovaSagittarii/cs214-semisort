@@ -37,7 +37,7 @@ size_t GetBucketId(const size_t k, const std::map<size_t, size_t>& H, const size
 }
 
 template <class T>
-void ssort(T *A, T *B, size_t *C, const size_t An, const size_t n, const bool in_place) {
+void ssort(T *A, T *B, size_t *C, size_t *SC, const size_t An, const size_t n, const bool in_place) {
   if (n <= alpha) {
     std::sort(A, A + n);
     if (in_place) {
@@ -111,7 +111,7 @@ void ssort(T *A, T *B, size_t *C, const size_t An, const size_t n, const bool in
     //   print_array(D, m);
     // }
     // println("===");
-  C[m * nB] = scan(C, m * nB); // computing the prefixsum to get exact bucket sizes
+  C[m * nB] = scan(C, SC, m * nB); // computing the prefixsum to get exact bucket sizes
   // println("C[-1]="<< C[m * nB]);
     // println("X = ");
     // for (size_t i = 0; i < nB; ++i) {
@@ -155,7 +155,7 @@ void ssort(T *A, T *B, size_t *C, const size_t An, const size_t n, const bool in
   // const size_t memory_block = mem / nL;
   parlay::parallel_for(0, nL, [&](size_t i) {
     const size_t o = offsets[i];
-    ssort(B + o, A + o, C + o, An, offsets[i+1] - o, !in_place);
+    ssort(B + o, A + o, C + o, SC + o, An, offsets[i+1] - o, !in_place);
   });
   free(offsets);
 }
@@ -164,8 +164,9 @@ template <class T>
 void semisort(T *A, size_t n) {
   T* B = (T*)malloc(n * sizeof(T)); // output buffer
   size_t* C = (size_t*)malloc(n * sizeof(size_t)); // subarray counts
+  size_t* SC = (size_t*)malloc(n * sizeof(size_t)); // scan buffer
   // print_array(A, n);
-  ssort(A, B, C, n, n, false);
+  ssort(A, B, C, SC, n, n, false);
   // print_array(A, n);
   free(C);
   free(B);

@@ -7,14 +7,14 @@ using namespace parlay;
  * Inplace block scan DIRECTLY without filter (from coding assignment 2)
  */
 template <typename T>
-T scan(T *A, size_t n) {
+T scan(T *A, size_t *S, size_t n) {
   /**
    * REPLACE THE BODY OF THE FOLLOWING
    * FUNCTION WITH YOUR PARALLEL IMPLEMENTATION
   */
   const size_t k  = std::sqrt(n);  // chunks to break into
   const size_t sn = (n+k-1)/k;     // chunk size
-  T* S = (T*)malloc( k * sizeof(T) );
+  // T* S = (T*)malloc( k * sizeof(T) );
 
   // compute S[0:k]
   parallel_for(0, k, [&](size_t i) {
@@ -47,6 +47,6 @@ T scan(T *A, size_t n) {
     }
     if (i == k-1) a_total = total;
   });
-  free(S);
+  // free(S);
   return a_total;
 }

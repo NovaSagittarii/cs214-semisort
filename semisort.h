@@ -1,6 +1,7 @@
 #include <algorithm>
 #include <map>
 #include <math.h>
+#include <utility>
 
 #include "parlaylib/include/parlay/parallel.h"
 
@@ -8,20 +9,29 @@
 #include "scan.h"
 
 // parameters (move to function later?)
-#define nL    1024      // number of light buckets
-#define alpha 32*32*1024   // base case size
+// #define nL    1024      // number of light buckets
+#define alpha 32*1024   // base case size
 
+size_t GetKey(const std::pair<long long, long long> &el) {
+  return el.first;
+}
 // hash function
 template <class T>
 size_t h(T x) {
-  return x;
+  // return x;
+  return hash64(x);
+  // return hash64(x) & (((size_t)1 << 63) - 1);
+  // https://graphics.stanford.edu/~seander/bithacks.html#IntegerAbs
+  // auto v = hash64(x);
+  // size_t const mask = (v >> sizeof(size_t)) - 1;
+  // return (v + mask) ^ mask;
 }
 
 #define print(x) std::cout<< x
 #define println(x) print(x << std::endl)
 #define print_array(A, n) for (size_t i = 0; i < n; ++i) {print(A[i] << " ");} println("");
 
-size_t GetBucketId(const size_t k, const std::map<size_t, size_t>& H) {
+size_t GetBucketId(const size_t k, const std::map<size_t, size_t>& H, const size_t nL) {
   if (H.count(k)) return H.at(k);
   return k % nL;
 }
@@ -40,7 +50,9 @@ void ssort(T *A, T *B, size_t *C, const size_t An, const size_t n, const bool in
   if (n <= 1) return;
 
   // Parameters
-  const size_t l = n / 5000; // subarray size
+  const int target_nL = std::pow(n, 0.5)/2;
+  const size_t nL = std::min(1024, target_nL);
+  const size_t l = n / target_nL; // subarray size
   const size_t m = (n + l - 1) / l; // subarrays
 
   // println("n'=" << n << " l=" << l << " subarrays=" << m);
@@ -50,7 +62,7 @@ void ssort(T *A, T *B, size_t *C, const size_t An, const size_t n, const bool in
   const size_t Sn = nL * std::log(n);
   std::map<size_t, size_t> S;
   for (size_t i = 0; i < Sn; ++i) {
-    ++S[h(A[hash64(i + Sn) % Sn])];
+    ++S[h(GetKey(A[hash64(i + Sn) % Sn]))];
   }
 
   std::map<size_t, size_t> H;
@@ -69,19 +81,26 @@ void ssort(T *A, T *B, size_t *C, const size_t An, const size_t n, const bool in
   // print(nH << " heavy bucket(s): ");
   // for (auto [k,v]: H) print(k<<" ("<<GetBucketId(k, H)<<") ");
   // println("");
-  if (nB * m > n) {
+  const bool needs_extra = nB * m > n;
+  if (needs_extra) {
     std::cout << "parameters messed up, using more memory than allocated" << std::endl;
+    std::cout << "requires " << nB*m << "B but has " << n << "B" << std::endl;
   }
+  //  nB * m = n
+  // 2nL * m = n
+  //       m = n / (2nL)
 
   // Blocked Distributing
     // (nL+nH) * (n'/l) <= 2nL * (n/l)
     // since l >> 2nL, O(n) extra space is sufficient
+    // 2nL * n/l <= n
+    // 2nL <= l
   parlay::parallel_for(0, n, [&](size_t i) { // initialize matrix C
     C[i] = 0;
   });
   parlay::parallel_for(0, m, [&](size_t i) { // to determine bucket size
     for (size_t j = i*l; j < std::min((i+1)*l, n); ++j) {
-      const size_t id = GetBucketId(h(A[j]), H);
+      const size_t id = GetBucketId(h(GetKey(A[j])), H, nL);
       // C[i][id] = C[id * m + i] = records falling into bucket id in subarray i
       ++C[id * m + i];
     }
@@ -111,13 +130,13 @@ void ssort(T *A, T *B, size_t *C, const size_t An, const size_t n, const bool in
   // println("aux= " << nL+nH+1 + (l*(nL+nH)) + 1 << " n=" << n);
 
   // initialize B to make mapping fails more obvious
-  parlay::parallel_for(0, n, [&](size_t i) {
-    B[i] = -1;
-  });
+  // parlay::parallel_for(0, n, [&](size_t i) {
+  //   B[i] = -1;
+  // });
 
   parlay::parallel_for(0, m, [&](size_t i) { // distributing items into buckets
     for (size_t j = i*l; j < std::min((i+1)*l, n); ++j) {
-      const size_t id = GetBucketId(h(A[j]), H);
+      const size_t id = GetBucketId(h(GetKey(A[j])), H, nL);
       B[C[id * m + i]] = A[j];
       ++C[id * m + i];
     }
@@ -133,6 +152,7 @@ void ssort(T *A, T *B, size_t *C, const size_t An, const size_t n, const bool in
   }
 
   // Local Refining
+  // const size_t memory_block = mem / nL;
   parlay::parallel_for(0, nL, [&](size_t i) {
     const size_t o = offsets[i];
     ssort(B + o, A + o, C + o, An, offsets[i+1] - o, !in_place);

@@ -47,5 +47,6 @@ T scan(T *A, size_t n) {
     }
     if (i == k-1) a_total = total;
   });
+  free(S);
   return a_total;
 }
